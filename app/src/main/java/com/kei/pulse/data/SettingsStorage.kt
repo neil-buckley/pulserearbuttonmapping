@@ -15,6 +15,7 @@ import com.kei.pulse.model.FanTempController
 import com.kei.pulse.model.OverlayElement
 import com.kei.pulse.model.OverlayPreset
 import com.kei.pulse.model.AutoTdpBias
+import com.kei.pulse.model.RearButtonAction
 import com.kei.pulse.model.RgbMode
 import com.kei.pulse.model.RgbStick
 import com.kei.pulse.model.PulseThemeId
@@ -86,6 +87,10 @@ class SettingsStorage(private val context: Context) {
     private val rgbManualLeftBrightnessKey = floatPreferencesKey("rgb_manual_left_brightness")
     private val rgbManualRightColorKey = intPreferencesKey("rgb_manual_right_color")
     private val rgbManualRightBrightnessKey = floatPreferencesKey("rgb_manual_right_brightness")
+    private val rearButtonsEnabledKey = booleanPreferencesKey("rear_buttons_enabled")
+    private val rearButtonM1Key = stringPreferencesKey("rear_button_m1")
+    private val rearButtonM2Key = stringPreferencesKey("rear_button_m2")
+    private val rearButtonScopedPackagesKey = stringPreferencesKey("rear_button_scoped_packages")
 
     // Custom-mode snapshot: preserved across preset applies so cycling back to Custom restores it.
     private val customPtEnabledKey = booleanPreferencesKey("custom_pt_enabled")
@@ -151,6 +156,10 @@ class SettingsStorage(private val context: Context) {
             fanBias = preferences[fanBiasKey] ?: 0,
             fanSmartEnabled = preferences[fanSmartKey] ?: true,
             fanTargetTempC = preferences[fanTargetTempKey] ?: FanTempController.DEFAULT_TARGET_C,
+            rearButtonsEnabled = preferences[rearButtonsEnabledKey] ?: false,
+            rearButtonM1 = preferences[rearButtonM1Key]?.let(::parseRearButtonAction) ?: RearButtonAction.VOLUME_DOWN,
+            rearButtonM2 = preferences[rearButtonM2Key]?.let(::parseRearButtonAction) ?: RearButtonAction.VOLUME_UP,
+            rearButtonScopedPackages = preferences[rearButtonScopedPackagesKey]?.let(::parsePackageSet) ?: emptySet(),
         )
     }
 
@@ -175,6 +184,31 @@ class SettingsStorage(private val context: Context) {
             }
         }
     }
+
+    suspend fun persistRearButtonsEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences -> preferences[rearButtonsEnabledKey] = enabled }
+    }
+
+    suspend fun persistRearButtonM1(action: RearButtonAction) {
+        context.settingsDataStore.edit { preferences -> preferences[rearButtonM1Key] = action.name }
+    }
+
+    suspend fun persistRearButtonM2(action: RearButtonAction) {
+        context.settingsDataStore.edit { preferences -> preferences[rearButtonM2Key] = action.name }
+    }
+
+    private fun parseRearButtonAction(raw: String): RearButtonAction =
+        runCatching { RearButtonAction.valueOf(raw) }.getOrDefault(RearButtonAction.NONE)
+
+    suspend fun persistRearButtonScopedPackages(packages: Set<String>) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[rearButtonScopedPackagesKey] = packages.joinToString(",")
+        }
+    }
+
+    /** Comma-joined package names → set, skipping blanks (never throws — package names can't collide with ','). */
+    private fun parsePackageSet(raw: String): Set<String> =
+        raw.split(",").map(String::trim).filter(String::isNotBlank).toSet()
 
     private fun parseRgbMode(raw: String): RgbMode =
         runCatching { RgbMode.valueOf(raw) }.getOrDefault(RgbMode.OFF)

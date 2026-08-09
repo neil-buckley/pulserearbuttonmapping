@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,8 +33,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -49,6 +53,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +65,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -67,6 +73,7 @@ import com.kei.pulse.model.AppColorSource
 import com.kei.pulse.model.OverlayElement
 import com.kei.pulse.model.OverlayPreset
 import com.kei.pulse.model.PulseThemeId
+import com.kei.pulse.model.RearButtonAction
 import com.kei.pulse.model.RgbMode
 import com.kei.pulse.model.RgbStick
 import com.kei.pulse.ui.theme.HudBackground
@@ -125,6 +132,12 @@ fun SettingsScreen(
     onSetQuickAccessCombo: () -> Unit = {},
     onClearQuickAccessCombo: () -> Unit = {},
     capturingCombo: Boolean = false,
+    rearButtonsSupported: Boolean = false,
+    onRearButtonsEnabledChange: (Boolean) -> Unit = {},
+    onRearButtonM1Change: (RearButtonAction) -> Unit = {},
+    onRearButtonM2Change: (RearButtonAction) -> Unit = {},
+    rearButtonScopedPackages: Set<String> = emptySet(),
+    onRearButtonScopedPackagesChange: (Set<String>) -> Unit = {},
 ) {
     var showResetConfirmation by remember { mutableStateOf(false) }
 
@@ -527,6 +540,51 @@ fun SettingsScreen(
             }
         }
 
+        if (rearButtonsSupported) {
+            SettingsSection(title = "Rear buttons") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = "Map M1 / M2",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = "Map the rear paddle buttons to an action instead of their default game input. " +
+                                "Uses an Accessibility Service, so Android may need \"Allow restricted settings\" " +
+                                "enabled for PULSE first (⋮ menu on PULSE's App info page).",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Switch(
+                        checked = settings.rearButtonsEnabled,
+                        onCheckedChange = onRearButtonsEnabledChange,
+                    )
+                }
+                if (settings.rearButtonsEnabled) {
+                    SettingsControlGroup(label = "M1") {
+                        RearButtonActionDropdown(selected = settings.rearButtonM1, onChange = onRearButtonM1Change)
+                    }
+                    SettingsControlGroup(label = "M2") {
+                        RearButtonActionDropdown(selected = settings.rearButtonM2, onChange = onRearButtonM2Change)
+                    }
+                    SettingsControlGroup(label = "Active in") {
+                        RearButtonAppScope(
+                            scopedPackages = rearButtonScopedPackages,
+                            onChange = onRearButtonScopedPackagesChange,
+                        )
+                    }
+                }
+            }
+        }
+
         SettingsSection(title = "Profiles") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -675,6 +733,190 @@ private fun SleepProfileSelector(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RearButtonActionDropdown(
+    selected: RearButtonAction,
+    onChange: (RearButtonAction) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+    ) {
+        OutlinedTextField(
+            value = selected.label,
+            onValueChange = {},
+            readOnly = true,
+            modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .fillMaxWidth(),
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            singleLine = true,
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            RearButtonAction.entries.forEach { action ->
+                DropdownMenuItem(
+                    text = { Text(action.label) },
+                    onClick = {
+                        onChange(action)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Restricts WHEN the M1/M2 remap is active. Empty [scopedPackages] means "everywhere" — the original
+ * always-on behavior — so that's spelled out in the empty-state copy rather than left to look broken.
+ * Apps are loaded lazily (only once the picker is opened) since most users will leave this empty.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RearButtonAppScope(
+    scopedPackages: Set<String>,
+    onChange: (Set<String>) -> Unit,
+) {
+    val context = LocalContext.current
+    var installedApps by remember { mutableStateOf<List<InstalledApp>?>(null) }
+    var showPicker by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showPicker) {
+        if (showPicker && installedApps == null) {
+            installedApps = loadInstalledApps(context)
+        }
+    }
+
+    val labelsByPackage = installedApps?.associate { it.packageName to it.label }.orEmpty()
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = if (scopedPackages.isEmpty()) {
+                "Remapped everywhere. Add an app to only intercept M1/M2 while it's running — avoids any " +
+                    "added input latency elsewhere."
+            } else {
+                "Only remapped while one of these is in the foreground; the raw buttons reach every other app."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            scopedPackages.sorted().forEach { packageName ->
+                FilterChip(
+                    selected = true,
+                    onClick = { onChange(scopedPackages - packageName) },
+                    label = { Text(labelsByPackage[packageName] ?: packageName) },
+                    trailingIcon = {
+                        Icon(Icons.Filled.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp))
+                    },
+                )
+            }
+            FilterChip(
+                selected = false,
+                onClick = { showPicker = true },
+                label = { Text("Add app") },
+                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp)) },
+            )
+        }
+    }
+
+    if (showPicker) {
+        RearButtonAppPickerDialog(
+            apps = installedApps,
+            selected = scopedPackages,
+            onDismiss = { showPicker = false },
+            onConfirm = { updated ->
+                onChange(updated)
+                showPicker = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun RearButtonAppPickerDialog(
+    apps: List<InstalledApp>?,
+    selected: Set<String>,
+    onDismiss: () -> Unit,
+    onConfirm: (Set<String>) -> Unit,
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var picked by remember { mutableStateOf(selected) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Active in") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search apps") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                val loaded = apps
+                if (loaded == null) {
+                    Text(
+                        text = "Loading apps…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    val query = searchQuery.trim()
+                    val filtered = if (query.isEmpty()) loaded else loaded.filter { it.label.contains(query, ignoreCase = true) }
+                    Column(
+                        modifier = Modifier
+                            .heightIn(max = 320.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        filtered.forEach { app ->
+                            val isSelected = app.packageName in picked
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        picked = if (isSelected) picked - app.packageName else picked + app.packageName
+                                    }
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = { checked ->
+                                        picked = if (checked) picked + app.packageName else picked - app.packageName
+                                    },
+                                )
+                                Text(app.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(picked) }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 @Composable

@@ -1,7 +1,5 @@
 package com.kei.pulse.ui
 
-import android.content.Intent
-import android.content.pm.PackageManager
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,12 +32,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
 import com.kei.pulse.data.FanController
 import com.kei.pulse.model.AutoTdpBias
 import com.kei.pulse.model.PerAppConfig
@@ -48,14 +43,6 @@ import com.kei.pulse.model.PowerTier
 import com.kei.pulse.model.ProfileSource
 import com.kei.pulse.model.ProfileStateResolver
 import com.kei.pulse.ui.theme.HudBackground
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-
-private data class InstalledApp(
-    val packageName: String,
-    val label: String,
-    val icon: ImageBitmap?,
-)
 
 /** Settings sub-screen: bind a power tier / saved profile (+ system extras) to installed apps. */
 @Composable
@@ -77,26 +64,7 @@ fun PerAppScreen(
     var searchQuery by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        apps = withContext(Dispatchers.IO) {
-            val pm = context.packageManager
-            val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-            pm.queryIntentActivities(launcherIntent, PackageManager.MATCH_ALL)
-                .asSequence()
-                .map { it.activityInfo }
-                .filter { it.packageName != context.packageName }
-                .distinctBy { it.packageName }
-                .map { info ->
-                    InstalledApp(
-                        packageName = info.packageName,
-                        label = info.loadLabel(pm).toString(),
-                        icon = runCatching {
-                            info.loadIcon(pm).toBitmap(96, 96).asImageBitmap()
-                        }.getOrNull(),
-                    )
-                }
-                .sortedBy { it.label.lowercase() }
-                .toList()
-        }
+        apps = loadInstalledApps(context)
     }
 
     val configsByPackage = configs.associateBy { it.packageName }

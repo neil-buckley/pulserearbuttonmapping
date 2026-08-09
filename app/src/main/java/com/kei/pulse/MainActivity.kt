@@ -17,12 +17,15 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.kei.pulse.appwatch.ForegroundAppMonitorService
+import com.kei.pulse.input.OdinButtonService
+import com.kei.pulse.input.RearButtonSupport
 import com.kei.pulse.overlay.PerformanceOverlay
 import com.kei.pulse.sleep.SleepProfileMonitorService
 import com.kei.pulse.tile.QuickSettingsTileAddResult
@@ -112,6 +115,7 @@ class MainActivity : ComponentActivity() {
                     val estimatedPeakW = viewModel.estimatedPeakW.collectAsStateWithLifecycle().value
                     var showSettings by rememberSaveable { mutableStateOf(false) }
                     var showPerApps by rememberSaveable { mutableStateOf(false) }
+                    val rearButtonsSupported = remember { RearButtonSupport.isSupported(this@MainActivity) }
                     val perAppEnabled = viewModel.perAppEnabled.collectAsStateWithLifecycle().value
                     val perAppConfigs = viewModel.perAppConfigs.collectAsStateWithLifecycle().value
                     val perAppSwitchNotices = viewModel.perAppSwitchNotices.collectAsStateWithLifecycle().value
@@ -206,6 +210,12 @@ class MainActivity : ComponentActivity() {
                             onSetQuickAccessCombo = viewModel::captureQuickAccessCombo,
                             onClearQuickAccessCombo = viewModel::clearQuickAccessCombo,
                             capturingCombo = viewModel.capturingCombo.collectAsStateWithLifecycle().value,
+                            rearButtonsSupported = rearButtonsSupported,
+                            onRearButtonsEnabledChange = ::setRearButtonsEnabled,
+                            onRearButtonM1Change = viewModel::setRearButtonM1,
+                            onRearButtonM2Change = viewModel::setRearButtonM2,
+                            rearButtonScopedPackages = settings.rearButtonScopedPackages,
+                            onRearButtonScopedPackagesChange = viewModel::setRearButtonScopedPackages,
                         )
                     } else {
                         MainTunerScreen(
@@ -308,6 +318,10 @@ class MainActivity : ComponentActivity() {
     // Set when AutoTDP (global default) is flipped on without Usage access — same bounce/return flow.
     private var pendingAutoTdpEnable = false
 
+    // Set when Rear buttons is flipped on but the OdinButtonService accessibility service isn't enabled yet:
+    // we bounce to Accessibility settings and finish enabling automatically when they come back with it on.
+    private var pendingRearButtonsEnable = false
+
     override fun onResume() {
         super.onResume()
         // PULSE's UI is on screen — the OSD must never draw over it (a focused text field makes the foreground
@@ -362,6 +376,13 @@ class MainActivity : ComponentActivity() {
                 enableAutoTdpDefault()
             }
         }
+        if (pendingRearButtonsEnable) {
+            pendingRearButtonsEnable = false
+            if (OdinButtonService.isEnabled(this)) {
+                Toast.makeText(applicationContext, "Rear buttons enabled", Toast.LENGTH_SHORT).show()
+                viewModel.setRearButtonsEnabled(true)
+            }
+        }
     }
 
     override fun onPause() {
@@ -393,6 +414,31 @@ class MainActivity : ComponentActivity() {
         viewModel.setAutoTdpDefault(true) {
             ForegroundAppMonitorService.start(this)
         }
+    }
+
+    /**
+     * Rear buttons (M1/M2) run through an AccessibilityService, which can only be turned on from system
+     * Accessibility settings. Bounce there and finish enabling in [onResume] once it's actually bound — on
+     * Android 13+ sideloaded PULSE also needs "Allow restricted settings" first, or the toggle stays greyed
+     * out, so the toast spells that out.
+     */
+    private fun setRearButtonsEnabled(enabled: Boolean) {
+        if (!enabled) {
+            viewModel.setRearButtonsEnabled(false)
+            return
+        }
+        if (!OdinButtonService.isEnabled(this)) {
+            pendingRearButtonsEnable = true
+            startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            Toast.makeText(
+                applicationContext,
+                "Turn on \"PULSE Rear Buttons\" under Accessibility, then come back. If it's greyed out: " +
+                    "App info → ⋮ → Allow restricted settings, then try again.",
+                Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        viewModel.setRearButtonsEnabled(true)
     }
 
     private fun setOverlayEnabled(enabled: Boolean) {

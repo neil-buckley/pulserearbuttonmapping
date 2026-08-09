@@ -13,6 +13,7 @@
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <!-- Per-app profiles needs to list launchable apps on API 30+; the HOME query lets the watcher SEE the
          launcher package (a system home app has no LAUNCHER category, so without this it's invisible under
@@ -88,6 +89,19 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="User-enabled per-app performance profile switching when configured apps launch" />
+        </service>
+
+        <service
+            android:name=".input.OdinButtonService"
+            android:exported="false"
+            android:label="@string/odin_button_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/odin_button_service" />
         </service>
 
         <receiver

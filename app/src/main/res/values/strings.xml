@@ -7,4 +7,6 @@
     <string name="tile_title">PULSE</string>
     <string name="tile_state_manual">Manual</string>
     <string name="tile_state_unavailable">Unavailable</string>
+    <string name="odin_button_service_label">PULSE Rear Buttons</string>
+    <string name="odin_button_service_description">Lets PULSE map the Odin\'s rear M1/M2 buttons (e.g. to volume up/down) in Settings → Rear buttons.</string>
 </resources>

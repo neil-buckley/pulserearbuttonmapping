@@ -174,4 +174,19 @@ data class AppSettings(
     val rgbManualLeftBrightness: Float = 1f,
     val rgbManualRightColor: Int = 0xFF3F6BFF.toInt(),
     val rgbManualRightBrightness: Float = 1f,
+    /**
+     * AYN Odin rear M1/M2 buttons (EXPERIMENTAL, default OFF). Consumed via an AccessibilityService
+     * (see [com.kei.pulse.input.OdinButtonService]) rather than the root `getevent` combo watcher — only
+     * shown in Settings when [com.kei.pulse.input.RearButtonSupport] detects the Odin's rear-button hardware.
+     */
+    val rearButtonsEnabled: Boolean = false,
+    val rearButtonM1: RearButtonAction = RearButtonAction.VOLUME_DOWN,
+    val rearButtonM2: RearButtonAction = RearButtonAction.VOLUME_UP,
+    /**
+     * Package allowlist scoping WHEN the M1/M2 remap is active (see [RearButtonScope]). Empty = remap
+     * everywhere (the original always-on behavior). Non-empty = only while a listed app is foreground;
+     * outside that window the accessibility key-filter flag is fully released — zero interception
+     * overhead for every other app, not just a fast pass-through in the key event callback.
+     */
+    val rearButtonScopedPackages: Set<String> = emptySet(),
 )

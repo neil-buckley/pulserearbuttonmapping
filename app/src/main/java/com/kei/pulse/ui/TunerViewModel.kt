@@ -1235,6 +1235,22 @@ class TunerViewModel(
         viewModelScope.launch { settingsStorage.persistOverlayOpacity(opacity) }
     }
 
+    fun setRearButtonsEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsStorage.persistRearButtonsEnabled(enabled) }
+    }
+
+    fun setRearButtonM1(action: com.kei.pulse.model.RearButtonAction) {
+        viewModelScope.launch { settingsStorage.persistRearButtonM1(action) }
+    }
+
+    fun setRearButtonM2(action: com.kei.pulse.model.RearButtonAction) {
+        viewModelScope.launch { settingsStorage.persistRearButtonM2(action) }
+    }
+
+    fun setRearButtonScopedPackages(packages: Set<String>) {
+        viewModelScope.launch { settingsStorage.persistRearButtonScopedPackages(packages) }
+    }
+
     fun refreshLiveState() {
         repository.refreshLiveValues()
     }
