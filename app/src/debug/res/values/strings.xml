@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug-only override so locally installed dev builds are distinguishable from a release PULSE.
+     Not part of the upstream-facing feature work. -->
+<resources>
+    <string name="app_name">SonicPulse</string>
+</resources>

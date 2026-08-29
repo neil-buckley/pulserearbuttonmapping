@@ -215,6 +215,7 @@ class MainActivity : ComponentActivity() {
                             onRearButtonM1Change = viewModel::setRearButtonM1,
                             onRearButtonM2Change = viewModel::setRearButtonM2,
                             rearButtonScopedPackages = settings.rearButtonScopedPackages,
+                            onRearButtonScopeModeChange = viewModel::setRearButtonScopeMode,
                             onRearButtonScopedPackagesChange = viewModel::setRearButtonScopedPackages,
                         )
                     } else {

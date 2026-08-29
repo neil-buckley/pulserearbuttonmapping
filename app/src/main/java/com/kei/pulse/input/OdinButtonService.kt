@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
  * longer a static flag there) is a global tax: while requested, Android routes EVERY key event on the
  * device, for every foreground app, through this service — not just M1/M2. [RearButtonScope] decides when
  * that's actually worth paying for, and [applyFilterScope] toggles the flag at runtime via `setServiceInfo`
- * so it's only held while the master switch is on and (if an allowlist is configured) a listed app is
+ * so it's only held while the master switch is on and (in Selected-apps scope) a listed app is
  * foreground. Foreground tracking rides the `typeWindowStateChanged` events the service already receives
  * (declared in the XML) — cheaper and more immediate than `ForegroundAppMonitorService`'s UsageStats
  * polling, and needs no extra permission.
@@ -67,8 +67,8 @@ class OdinButtonService : AccessibilityService() {
         }
         // foregroundPackage starts null (no getWindows()/FLAG_RETRIEVE_INTERACTIVE_WINDOWS bootstrap — that's
         // a second, broader capability Android surfaces distinctly to the user, not worth it for a gap that's
-        // milliseconds long). With a non-empty allowlist this fails closed until the first window-state event
-        // arrives; with an empty allowlist ("everywhere") it's irrelevant since foreground isn't consulted.
+        // milliseconds long). In Selected-apps scope this fails closed until the first window-state event
+        // arrives; in Everywhere scope it's irrelevant since foreground isn't consulted.
         applyFilterScope()
     }
 
@@ -86,7 +86,13 @@ class OdinButtonService : AccessibilityService() {
     }
 
     private fun applyFilterScope() {
-        val want = RearButtonScope.shouldFilter(settings.rearButtonsEnabled, settings.rearButtonScopedPackages, foregroundPackage)
+        val current = settings
+        val want = RearButtonScope.shouldFilter(
+            enabled = current.rearButtonsEnabled,
+            mode = current.rearButtonScopeMode,
+            scopedPackages = current.rearButtonScopedPackages,
+            foregroundPackage = foregroundPackage,
+        )
         if (want == filterActive) return
         filterActive = want
         val info = serviceInfo ?: return

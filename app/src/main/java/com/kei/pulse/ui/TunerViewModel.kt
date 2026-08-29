@@ -1247,6 +1247,10 @@ class TunerViewModel(
         viewModelScope.launch { settingsStorage.persistRearButtonM2(action) }
     }
 
+    fun setRearButtonScopeMode(mode: com.kei.pulse.model.RearButtonScopeMode) {
+        viewModelScope.launch { settingsStorage.persistRearButtonScopeMode(mode) }
+    }
+
     fun setRearButtonScopedPackages(packages: Set<String>) {
         viewModelScope.launch { settingsStorage.persistRearButtonScopedPackages(packages) }
     }

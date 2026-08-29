@@ -74,6 +74,7 @@ import com.kei.pulse.model.OverlayElement
 import com.kei.pulse.model.OverlayPreset
 import com.kei.pulse.model.PulseThemeId
 import com.kei.pulse.model.RearButtonAction
+import com.kei.pulse.model.RearButtonScopeMode
 import com.kei.pulse.model.RgbMode
 import com.kei.pulse.model.RgbStick
 import com.kei.pulse.ui.theme.HudBackground
@@ -137,6 +138,7 @@ fun SettingsScreen(
     onRearButtonM1Change: (RearButtonAction) -> Unit = {},
     onRearButtonM2Change: (RearButtonAction) -> Unit = {},
     rearButtonScopedPackages: Set<String> = emptySet(),
+    onRearButtonScopeModeChange: (RearButtonScopeMode) -> Unit = {},
     onRearButtonScopedPackagesChange: (Set<String>) -> Unit = {},
 ) {
     var showResetConfirmation by remember { mutableStateOf(false) }
@@ -576,10 +578,26 @@ fun SettingsScreen(
                         RearButtonActionDropdown(selected = settings.rearButtonM2, onChange = onRearButtonM2Change)
                     }
                     SettingsControlGroup(label = "Active in") {
-                        RearButtonAppScope(
-                            scopedPackages = rearButtonScopedPackages,
-                            onChange = onRearButtonScopedPackagesChange,
-                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            RearButtonScopeMode.entries.forEach { mode ->
+                                FilterChip(
+                                    selected = settings.rearButtonScopeMode == mode,
+                                    onClick = { onRearButtonScopeModeChange(mode) },
+                                    label = { Text(mode.label) },
+                                )
+                            }
+                        }
+                        when (settings.rearButtonScopeMode) {
+                            RearButtonScopeMode.EVERYWHERE -> Text(
+                                text = "Remapped system-wide, in every app.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            RearButtonScopeMode.SELECTED_APPS -> RearButtonAppScope(
+                                scopedPackages = rearButtonScopedPackages,
+                                onChange = onRearButtonScopedPackagesChange,
+                            )
+                        }
                     }
                 }
             }
@@ -778,9 +796,9 @@ private fun RearButtonActionDropdown(
 }
 
 /**
- * Restricts WHEN the M1/M2 remap is active. Empty [scopedPackages] means "everywhere" — the original
- * always-on behavior — so that's spelled out in the empty-state copy rather than left to look broken.
- * Apps are loaded lazily (only once the picker is opened) since most users will leave this empty.
+ * The Selected-apps allowlist editor. An empty list fails CLOSED (nothing remapped anywhere) — the mode
+ * chip already says "Selected apps", so silently behaving like Everywhere would contradict the UI; the
+ * empty-state copy says so instead. Apps are loaded lazily (only once the picker is opened).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -803,8 +821,7 @@ private fun RearButtonAppScope(
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             text = if (scopedPackages.isEmpty()) {
-                "Remapped everywhere. Add an app to only intercept M1/M2 while it's running — avoids any " +
-                    "added input latency elsewhere."
+                "No apps selected yet — M1/M2 stay untouched until you add one."
             } else {
                 "Only remapped while one of these is in the foreground; the raw buttons reach every other app."
             },

@@ -183,10 +183,15 @@ data class AppSettings(
     val rearButtonM1: RearButtonAction = RearButtonAction.VOLUME_DOWN,
     val rearButtonM2: RearButtonAction = RearButtonAction.VOLUME_UP,
     /**
-     * Package allowlist scoping WHEN the M1/M2 remap is active (see [RearButtonScope]). Empty = remap
-     * everywhere (the original always-on behavior). Non-empty = only while a listed app is foreground;
-     * outside that window the accessibility key-filter flag is fully released — zero interception
-     * overhead for every other app, not just a fast pass-through in the key event callback.
+     * Where the remap applies (see [RearButtonScope]). [RearButtonScopeMode.EVERYWHERE] = system-wide;
+     * [RearButtonScopeMode.SELECTED_APPS] = only while one of [rearButtonScopedPackages] is foreground.
+     */
+    val rearButtonScopeMode: RearButtonScopeMode = RearButtonScopeMode.EVERYWHERE,
+    /**
+     * Package allowlist consulted in [RearButtonScopeMode.SELECTED_APPS] (kept across mode switches so
+     * flipping to EVERYWHERE and back doesn't lose the list). While no listed app is foreground — including
+     * when the list is empty, which fails closed — the accessibility key-filter flag is fully released:
+     * zero interception overhead for every other app, not just a fast pass-through in the key event callback.
      */
     val rearButtonScopedPackages: Set<String> = emptySet(),
 )

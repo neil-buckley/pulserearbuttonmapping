@@ -1,17 +1,29 @@
 package com.kei.pulse.model
 
+/** Where the M1/M2 remap applies: system-wide, or only while one of the chosen apps is foreground. */
+enum class RearButtonScopeMode(val label: String) {
+    EVERYWHERE("Everywhere"),
+    SELECTED_APPS("Selected apps"),
+}
+
 /**
  * Decides whether [com.kei.pulse.input.OdinButtonService] should currently be requesting
  * `FLAG_REQUEST_FILTER_KEY_EVENTS` — i.e. whether Android should route every key event on the device
  * through the service at all. That flag is a global latency tax on EVERY app while requested (Android
  * doesn't scope it to specific keycodes), so it must only be held while it can actually do something:
- * the master switch is on, and (empty allowlist = everywhere, else) the foreground app is one of the
- * configured apps.
+ * the master switch is on, and the [RearButtonScopeMode] says this foreground app qualifies. In
+ * [RearButtonScopeMode.SELECTED_APPS] an empty allowlist fails closed (nothing remapped) rather than
+ * silently meaning "everywhere".
  */
 object RearButtonScope {
-    fun shouldFilter(enabled: Boolean, scopedPackages: Set<String>, foregroundPackage: String?): Boolean {
+    fun shouldFilter(
+        enabled: Boolean,
+        mode: RearButtonScopeMode,
+        scopedPackages: Set<String>,
+        foregroundPackage: String?,
+    ): Boolean {
         if (!enabled) return false
-        if (scopedPackages.isEmpty()) return true
+        if (mode == RearButtonScopeMode.EVERYWHERE) return true
         return foregroundPackage != null && foregroundPackage in scopedPackages
     }
 

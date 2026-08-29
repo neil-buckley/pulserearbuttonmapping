@@ -16,6 +16,7 @@ import com.kei.pulse.model.OverlayElement
 import com.kei.pulse.model.OverlayPreset
 import com.kei.pulse.model.AutoTdpBias
 import com.kei.pulse.model.RearButtonAction
+import com.kei.pulse.model.RearButtonScopeMode
 import com.kei.pulse.model.RgbMode
 import com.kei.pulse.model.RgbStick
 import com.kei.pulse.model.PulseThemeId
@@ -90,6 +91,7 @@ class SettingsStorage(private val context: Context) {
     private val rearButtonsEnabledKey = booleanPreferencesKey("rear_buttons_enabled")
     private val rearButtonM1Key = stringPreferencesKey("rear_button_m1")
     private val rearButtonM2Key = stringPreferencesKey("rear_button_m2")
+    private val rearButtonScopeModeKey = stringPreferencesKey("rear_button_scope_mode")
     private val rearButtonScopedPackagesKey = stringPreferencesKey("rear_button_scoped_packages")
 
     // Custom-mode snapshot: preserved across preset applies so cycling back to Custom restores it.
@@ -103,6 +105,7 @@ class SettingsStorage(private val context: Context) {
     private val customGovernorLabelKey = stringPreferencesKey("custom_governor_label")
 
     val settings: Flow<AppSettings> = context.settingsDataStore.data.map { preferences ->
+        val rearButtonScopedPackages = preferences[rearButtonScopedPackagesKey]?.let(::parsePackageSet) ?: emptySet()
         AppSettings(
             themeId = preferences[themeIdKey]?.let(::parseThemeId) ?: PulseThemeId.SIGNAL,
             colorSource = preferences[colorSourceKey]
@@ -159,7 +162,11 @@ class SettingsStorage(private val context: Context) {
             rearButtonsEnabled = preferences[rearButtonsEnabledKey] ?: false,
             rearButtonM1 = preferences[rearButtonM1Key]?.let(::parseRearButtonAction) ?: RearButtonAction.VOLUME_DOWN,
             rearButtonM2 = preferences[rearButtonM2Key]?.let(::parseRearButtonAction) ?: RearButtonAction.VOLUME_UP,
-            rearButtonScopedPackages = preferences[rearButtonScopedPackagesKey]?.let(::parsePackageSet) ?: emptySet(),
+            // No stored mode = a build that only had the implicit model (empty list meant everywhere,
+            // non-empty meant scoped) — derive the equivalent explicit mode so behavior doesn't change.
+            rearButtonScopeMode = preferences[rearButtonScopeModeKey]?.let(::parseRearButtonScopeMode)
+                ?: if (rearButtonScopedPackages.isEmpty()) RearButtonScopeMode.EVERYWHERE else RearButtonScopeMode.SELECTED_APPS,
+            rearButtonScopedPackages = rearButtonScopedPackages,
         )
     }
 
@@ -199,6 +206,13 @@ class SettingsStorage(private val context: Context) {
 
     private fun parseRearButtonAction(raw: String): RearButtonAction =
         runCatching { RearButtonAction.valueOf(raw) }.getOrDefault(RearButtonAction.NONE)
+
+    suspend fun persistRearButtonScopeMode(mode: RearButtonScopeMode) {
+        context.settingsDataStore.edit { preferences -> preferences[rearButtonScopeModeKey] = mode.name }
+    }
+
+    private fun parseRearButtonScopeMode(raw: String): RearButtonScopeMode =
+        runCatching { RearButtonScopeMode.valueOf(raw) }.getOrDefault(RearButtonScopeMode.EVERYWHERE)
 
     suspend fun persistRearButtonScopedPackages(packages: Set<String>) {
         context.settingsDataStore.edit { preferences ->
